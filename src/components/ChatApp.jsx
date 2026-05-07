@@ -6,7 +6,8 @@ import ChatArea from './ChatArea';
 import { AuthContext } from '../context/AuthContext';
 import '../App.css';
 
-const API_URL = 'http://localhost:5000/api/chat';
+// ✅ IMPORTANT: backend URL from .env
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api/chat';
 
 function ChatApp() {
   const [chats, setChats] = useState([]);
@@ -15,7 +16,7 @@ function ChatApp() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  
+
   const { logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -67,9 +68,7 @@ function ChatApp() {
     try {
       await axios.delete(`${API_URL}/${id}`);
       setChats(chats.filter(c => c._id !== id));
-      if (activeChat === id) {
-        setActiveChat(null);
-      }
+      if (activeChat === id) setActiveChat(null);
     } catch (error) {
       console.error('Error deleting chat:', error);
     }
@@ -79,8 +78,8 @@ function ChatApp() {
     if ((!input.trim() && !selectedImage) || isLoading) return;
 
     let currentChatId = activeChat;
+
     if (!currentChatId) {
-      // Create new chat if none is active
       try {
         const res = await axios.post(API_URL);
         currentChatId = res.data._id;
@@ -93,43 +92,48 @@ function ChatApp() {
     }
 
     const userMessage = { role: 'user', parts: [] };
+
     if (input.trim()) userMessage.parts.push({ text: input });
+
     if (selectedImage) {
       userMessage.parts.push({
-        inlineData: { mimeType: selectedImage.mimeType, data: selectedImage.data }
+        inlineData: {
+          mimeType: selectedImage.mimeType,
+          data: selectedImage.data
+        }
       });
     }
 
     setMessages([...messages, userMessage]);
     const currentInput = input;
     const currentImage = selectedImage;
-    
+
     setInput('');
     setSelectedImage(null);
     setIsLoading(true);
 
     try {
       const payload = { message: currentInput };
-      if (currentImage) {
-        payload.image = currentImage;
-      }
+      if (currentImage) payload.image = currentImage;
+
       const res = await axios.post(`${API_URL}/${currentChatId}/message`, payload);
+
       setMessages(res.data.chat.messages);
-      
-      // Update chat list if title changed (usually after first message)
       fetchChats();
+
     } catch (error) {
-      console.error('Error sending message:', error);
-      
-      // Show error in the chat so user knows what went wrong
-      const errorMessage = error.response?.data?.error || "Sorry, I couldn't process that request. The server might be experiencing issues or you may have hit an API rate limit.";
-      
-      const errorMsg = { 
-        role: 'model', 
-        parts: [{ text: `⚠️ **Error:** ${errorMessage}` }] 
-      };
-      setMessages(prev => [...prev, errorMsg]);
-      
+      const errorMessage =
+        error.response?.data?.error ||
+        "Server error or API limit reached";
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'model',
+          parts: [{ text: `⚠️ Error: ${errorMessage}` }]
+        }
+      ]);
+
     } finally {
       setIsLoading(false);
     }
@@ -137,31 +141,48 @@ function ChatApp() {
 
   return (
     <div className="app-container">
-      <Sidebar 
+      <Sidebar
         chats={chats}
         activeChat={activeChat}
         onSelectChat={setActiveChat}
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
       />
-      <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden'}}>
-        <div style={{padding: '10px 20px', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#343541', borderBottom: '1px solid #565869'}}>
-            <span style={{marginRight: '15px', color: '#ececf1', alignSelf: 'center'}}>{user?.email}</span>
-            <button 
-                onClick={() => { logout(); navigate('/login'); }}
-                style={{backgroundColor: 'transparent', border: '1px solid #565869', color: '#ececf1', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'}}
-            >
-                Log out
-            </button>
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          padding: '10px 20px',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          backgroundColor: '#343541',
+          borderBottom: '1px solid #565869'
+        }}>
+          <span style={{ marginRight: '15px', color: '#ececf1' }}>
+            {user?.email}
+          </span>
+
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            style={{
+              background: 'transparent',
+              border: '1px solid #565869',
+              color: '#ececf1',
+              padding: '5px 10px',
+              borderRadius: '4px'
+            }}
+          >
+            Log out
+          </button>
         </div>
-        <ChatArea 
-            messages={messages}
-            isLoading={isLoading}
-            input={input}
-            setInput={setInput}
-            handleSend={handleSend}
-            selectedImage={selectedImage}
-            setSelectedImage={setSelectedImage}
+
+        <ChatArea
+          messages={messages}
+          isLoading={isLoading}
+          input={input}
+          setInput={setInput}
+          handleSend={handleSend}
+          selectedImage={selectedImage}
+          setSelectedImage={setSelectedImage}
         />
       </div>
     </div>
